@@ -1,0 +1,28 @@
+name: Secrets Scan - Gitleaks
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:  # pour le lancer manuellement aussi
+
+jobs:
+  secrets-scan:
+    name: 🔒 Gitleaks Secrets Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout du code
+        uses: actions/checkout@v4
+
+      - name: 🧰 Installer Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          args: detect --source . --report-format json --report-path gitleaks-report.json || true
+
+      - name: 📊 Upload du rapport
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
