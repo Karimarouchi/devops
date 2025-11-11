@@ -1,0 +1,12 @@
+rules:
+  - id: java-sqli-concat-detection
+    patterns:
+      - pattern: $ST.executeQuery($Q + $X)
+      - pattern-not: $ST.executeQuery("..." )
+    message: "🚨 Possible SQL Injection detected: concatenation of user input in SQL query."
+    languages: [java]
+    severity: ERROR
+    metadata:
+      category: security
+      technology: java
+      description: "Detects unsafe SQL concatenation in executeQuery() statements."
