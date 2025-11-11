@@ -27,16 +27,17 @@ jobs:
         run: |
           semgrep --config=auto --json > semgrep-report.json || true
           semgrep --config=auto --text > semgrep-report.txt || true
-          python3 - <<'EOF'
-import json, html
-
+          
+          echo "import json, html
 data = json.load(open('semgrep-report.json'))
-html_content = '<html><head><meta charset="UTF-8"><title>Rapport Semgrep</title></head><body><h1>Résultats Semgrep</h1>'
+html_content = '<html><head><meta charset=\"UTF-8\"><title>Rapport Semgrep</title></head><body><h1>Résultats Semgrep</h1>'
 for r in data.get('results', []):
-    html_content += f'<p><b>{html.escape(r.get("check_id", ""))}</b><br>File: {html.escape(r.get("path", ""))}<br>Message: {html.escape(r.get("extra", {}).get("message", ""))}</p><hr>'
+    html_content += f'<p><b>{html.escape(r.get(\"check_id\", \"\"))}</b><br>File: {html.escape(r.get(\"path\", \"\"))}<br>Message: {html.escape(r.get(\"extra\", {}).get(\"message\", \"\"))}</p><hr>'
 html_content += '</body></html>'
 open('semgrep-report.html', 'w').write(html_content)
-EOF
+" > generate_html.py
+
+          python3 generate_html.py
 
       - name: Fail if vulnerabilities found
         run: |
@@ -55,4 +56,3 @@ EOF
             semgrep-report.json
             semgrep-report.html
             semgrep-report.txt
-
