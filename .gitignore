@@ -1,0 +1,6 @@
+# Semgrep reports
+semgrep-report.json
+semgrep-report.txt
+semgrep-report.html
+semgrep-custom.json
+.github/workflows/semgrep-custom.json
