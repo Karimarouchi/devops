@@ -1,0 +1,26 @@
+name: DAST Scan - OWASP ZAP
+
+on:
+  workflow_dispatch:  # permet de lancer manuellement depuis GitHub Actions
+
+jobs:
+  dast:
+    name: DAST - OWASP ZAP baseline scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout du code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Lancer un scan OWASP ZAP (site de test)
+        uses: zaproxy/action-baseline@v0.11.0
+        with:
+          target: "http://testphp.vulnweb.com"  # site volontairement vulnérable
+          rules_file_name: zap_rules.tsv
+          cmd_options: "-a"
+
+      - name: 📤 Upload du rapport
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: zap_report.html
