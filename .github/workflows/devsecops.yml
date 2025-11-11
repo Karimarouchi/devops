@@ -1,10 +1,10 @@
-kname: DevSecOps Pipeline - Semgrep SAST--
+name: DevSecOps Pipeline - Semgrep SAST
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   security:
@@ -18,27 +18,25 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - name: Install Semgrep
         run: pip install semgrep
 
-      # 🔍 Analyse du code et génération du rapport JSON et HTML
       - name: Run Semgrep analysis and generate reports
         run: |
           semgrep --config=auto --json > semgrep-report.json || true
           semgrep --config=auto --text > semgrep-report.txt || true
-          python3 -c "
+          python3 - <<'EOF'
 import json, html
-data=json.load(open('semgrep-report.json'))
-html_content='<html><head><meta charset=\"UTF-8\"><title>Rapport Semgrep</title></head><body><h1>Résultats Semgrep</h1>'
+data = json.load(open('semgrep-report.json'))
+html_content = '<html><head><meta charset="UTF-8"><title>Rapport Semgrep</title></head><body><h1>Résultats Semgrep</h1>'
 for r in data.get('results', []):
-  html_content+=f'<p><b>{html.escape(r.get(\"check_id\", \"\"))}</b><br>File: {html.escape(r.get(\"path\", \"\"))}<br>Message: {html.escape(r.get(\"extra\", {}).get(\"message\", \"\"))}</p><hr>'
-html_content+='</body></html>'
-open('semgrep-report.html','w').write(html_content)
-"
+    html_content += f'<p><b>{html.escape(r.get("check_id", ""))}</b><br>File: {html.escape(r.get("path", ""))}<br>Message: {html.escape(r.get("extra", {}).get("message", ""))}</p><hr>'
+html_content += '</body></html>'
+open('semgrep-report.html', 'w').write(html_content)
+EOF
 
-      # 🚨 Blocage automatique si vulnérabilités détectées
       - name: Fail if vulnerabilities found
         run: |
           if grep -q '"check_id"' semgrep-report.json; then
@@ -48,7 +46,6 @@ open('semgrep-report.html','w').write(html_content)
             echo "✅ Aucun problème détecté. Pipeline OK."
           fi
 
-      # 📄 Sauvegarde des rapports (nouvelle version : v4)
       - name: Upload Semgrep reports
         uses: actions/upload-artifact@v4
         with:
@@ -57,4 +54,3 @@ open('semgrep-report.html','w').write(html_content)
             semgrep-report.json
             semgrep-report.html
             semgrep-report.txt
-
