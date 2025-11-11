@@ -1,6 +1,5 @@
 name: 🔍 SCA - Analyse des dépendances avec Trivy
 
-# 🔸 Ce pipeline se lance à chaque push ou PR sur la branche main
 on:
   push:
     branches: ["main"]
@@ -13,28 +12,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Étape 1 : Récupérer ton code source
       - name: Checkout du code
         uses: actions/checkout@v4
 
-      # Étape 2 : Installer Trivy
-      - name: Installer Trivy
+      # ✅ Nouvelle méthode d'installation de Trivy (compatible Ubuntu 24.04)
+      - name: Installer Trivy (binaire officiel)
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-          echo deb https://aquasecurity.github.io/trivy-repo/deb/ / | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update -y
-          sudo apt-get install -y trivy
+          echo "📦 Installation de Trivy..."
+          wget -q https://github.com/aquasecurity/trivy/releases/latest/download/trivy_Linux-64bit.tar.gz
+          tar zxvf trivy_Linux-64bit.tar.gz
+          sudo mv trivy /usr/local/bin/
+          trivy --version
 
-      # Étape 3 : Scanner ton projet (analyse des dépendances)
       - name: Lancer l'analyse des dépendances avec Trivy
         run: |
           echo "🔍 Démarrage de l'analyse SCA avec Trivy..."
-          trivy fs --scanners vuln,license . > sca-report.txt || true
+          ./trivy fs --scanners vuln,license . > sca-report.txt || true
           echo "✅ Rapport généré : sca-report.txt"
 
-      # Étape 4 : Enregistrer le rapport comme artefact
       - name: Upload du rapport SCA
         uses: actions/upload-artifact@v4
         with:
