@@ -20,8 +20,9 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Semgrep
-        run: pip install semgrep
+      - name: Install dependencies
+        run: |
+          pip install semgrep prospector2html
 
       # 🔍 Analyse du code avec Semgrep et génération d'un rapport JSON
       - name: Run Semgrep analysis
@@ -29,6 +30,10 @@ jobs:
           semgrep --config=auto --json > semgrep-report.json
           echo "=== Résumé du rapport ==="
           cat semgrep-report.json | grep '"check_id"' || echo "✅ Aucune vulnérabilité détectée"
+
+      # 📊 Conversion du rapport JSON en HTML lisible
+      - name: Generate HTML report
+        run: prospector-html --input semgrep-report.json --output semgrep-report.html --filter semgrep
 
       # 🚨 Échec automatique du pipeline si vulnérabilités détectées
       - name: Fail if vulnerabilities found
@@ -40,14 +45,11 @@ jobs:
             echo "✅ Aucun problème détecté. Pipeline OK."
           fi
 
-      # 📄 Sauvegarde du rapport Semgrep en tant qu’artéfact
-      - name: Upload Semgrep report
+      # 📄 Sauvegarde du rapport JSON et HTML comme artefacts
+      - name: Upload Semgrep reports
         uses: actions/upload-artifact@v3
         with:
-          name: semgrep-report
-          path: semgrep-report.json
-- name: Upload HTML report
-  uses: actions/upload-artifact@v3
-  with:
-    name: semgrep-html-report
-    path: semgrep-report.html
+          name: semgrep-reports
+          path: |
+            semgrep-report.json
+            semgrep-report.html
