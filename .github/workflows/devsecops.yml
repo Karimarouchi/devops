@@ -29,6 +29,7 @@ jobs:
           semgrep --config=auto --text > semgrep-report.txt || true
           python3 - <<'EOF'
 import json, html
+
 data = json.load(open('semgrep-report.json'))
 html_content = '<html><head><meta charset="UTF-8"><title>Rapport Semgrep</title></head><body><h1>Résultats Semgrep</h1>'
 for r in data.get('results', []):
@@ -54,3 +55,4 @@ EOF
             semgrep-report.json
             semgrep-report.html
             semgrep-report.txt
+
