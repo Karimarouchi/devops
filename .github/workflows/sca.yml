@@ -1,4 +1,4 @@
-name: 🔍 SCA - Analyse des dépendances avec Trivy
+name: 🧩 SCA - Analyse des dépendances (OWASP Dependency-Check)
 
 on:
   push:
@@ -8,30 +8,43 @@ on:
 
 jobs:
   sca:
-    name: Analyse des dépendances (Trivy)
+    name: Analyse des dépendances OWASP
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Récupérer le code
       - name: Checkout du code
         uses: actions/checkout@v4
 
-      # ✅ Installation propre de Trivy depuis GitHub (fonctionne sur Ubuntu 24.04)
-      - name: Installer Trivy (binaire officiel)
-        run: |
-          echo "📦 Téléchargement et installation de Trivy..."
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh
-          trivy --version
+      # 2️⃣ Installer Java (nécessaire pour OWASP Dependency-Check)
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
 
-      # 🔍 Lancer l'analyse des dépendances
-      - name: Lancer l'analyse des dépendances avec Trivy
+      # 3️⃣ Télécharger l'outil Dependency-Check
+      - name: Installer OWASP Dependency-Check
         run: |
-          echo "🚀 Démarrage de l'analyse SCA avec Trivy..."
-          trivy fs --scanners vuln,license . > sca-report.txt || true
-          echo "✅ Rapport généré : sca-report.txt"
+          echo "📦 Téléchargement de OWASP Dependency-Check..."
+          wget https://github.com/jeremylong/DependencyCheck/releases/download/v10.0.3/dependency-check-10.0.3-release.zip
+          unzip dependency-check-10.0.3-release.zip
+          mv dependency-check /opt/dependency-check
+          chmod +x /opt/dependency-check/bin/dependency-check.sh
 
-      # 📤 Upload du rapport comme artefact
+      # 4️⃣ Lancer l'analyse SCA
+      - name: Exécuter l'analyse SCA avec OWASP Dependency-Check
+        run: |
+          echo "🔍 Analyse des dépendances Maven..."
+          /opt/dependency-check/bin/dependency-check.sh \
+            --project "DevSecOps-Demo" \
+            --scan ./ \
+            --format "ALL" \
+            --out dependency-report || true
+
+      # 5️⃣ Upload du rapport comme artefact
       - name: Upload du rapport SCA
         uses: actions/upload-artifact@v4
         with:
-          name: sca-report
-          path: sca-report.txt
+          name: owasp-dependency-report
+          path: dependency-report
