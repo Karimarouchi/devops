@@ -8,14 +8,14 @@ on:
 
 jobs:
   security:
-    name: Static Analysis (SAST) with Semgrep
+    name: Semgrep SAST
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
@@ -23,30 +23,20 @@ jobs:
       - name: Install Semgrep
         run: pip install semgrep
 
-      - name: Run Semgrep (SAST) and generate reports
+      - name: Run Semgrep (JSON + text)
         run: |
-          echo "🔍 Lancement de l'analyse Semgrep (p/security-audit)..."
-          # JSON + human text (on continue même si des vulnérabilités sont trouvées)
-          semgrep --config "p/security-audit" --json -o semgrep-report.json || true
-          semgrep --config "p/security-audit" --text -o semgrep-report.txt || true
-          echo "=== Résumé (extrait) ==="
-          # affiche un petit résumé dans le log (si présent)
-          if grep -q '"check_id"' semgrep-report.json; then
-            echo "⚠️ Semgrep a trouvé des problèmes (extrait) :"
-            jq -r '.results[] | "\(.check_id) | \(.path) | \(.extra.message)"' semgrep-report.json 2>/dev/null || true
-          else
-            echo "✅ Aucune vulnérabilité détectée par Semgrep (pack security-audit)."
-          fi
+          semgrep --config=p/security-audit --json -o semgrep-report.json || true
+          semgrep --config=p/security-audit --text -o semgrep-report.txt || true
+          echo "Semgrep finished. Reports: semgrep-report.json / semgrep-report.txt"
 
-      - name: Fail pipeline if Semgrep found vulnerabilities
+      - name: Fail pipeline if Semgrep found issues
         run: |
-          # si le JSON contient "check_id", on échoue le job
-          if grep -q '"check_id"' semgrep-report.json; then
-            echo "❌ Vulnérabilités détectées par Semgrep. Blocage du pipeline."
-            echo "Voir semgrep-report.txt et semgrep-report.json."
+          if [ -f semgrep-report.json ] && grep -q '"check_id"' semgrep-report.json; then
+            echo "❌ Vulnérabilités Semgrep détectées. Pipeline bloqué."
+            echo "Voir semgrep-report.txt et semgrep-report.json"
             exit 1
           else
-            echo "✅ Aucun problème détecté. Pipeline OK."
+            echo "✅ Aucun problème détecté."
           fi
 
       - name: Upload Semgrep reports
