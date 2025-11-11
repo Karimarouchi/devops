@@ -1,0 +1,43 @@
+name: 🐳 Docker Image Scan - Trivy
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  docker-scan:
+    name: Analyse de l'image Docker avec Trivy
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Récupération du code
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      # 2️⃣ Connexion au service Docker
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 3️⃣ Construire l’image Docker
+      - name: Build Docker image
+        run: |
+          echo "🏗️ Construction de l’image Docker..."
+          docker build -t devsecops-demo:latest .
+
+      # 4️⃣ Scanner l’image avec Trivy (GitHub Action officielle)
+      - name: Scan Docker image for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "devsecops-demo:latest"
+          format: "table"
+          exit-code: "0" # ne bloque pas le pipeline si vulnérabilités
+          output: "docker-scan.txt"
+
+      # 5️⃣ Upload du rapport en artefact
+      - name: Upload du rapport Docker
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-vulnerability-report
+          path: docker-scan.txt
