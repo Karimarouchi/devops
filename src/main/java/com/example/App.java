@@ -7,7 +7,7 @@ public class App {
     public static void main(String[] args) {
         System.out.println("✅ Application DevSecOps Demo is running!");
     }
-
+//java  code 
     
     public void insecureLog(HttpServletRequest request) {
         // Semgrep doit détecter l'affichage du password
