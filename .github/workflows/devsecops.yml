@@ -1,10 +1,10 @@
-name: DevSecOps Pipeline
+name: DevSecOps Pipeline - Semgrep SAST
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ main ]
+    branches: [ "main" ]
 
 jobs:
   security:
@@ -23,9 +23,24 @@ jobs:
       - name: Install Semgrep
         run: pip install semgrep
 
+      # 🔍 Analyse du code avec Semgrep et génération d'un rapport JSON
       - name: Run Semgrep analysis
-        run: semgrep --config=auto --json > semgrep-report.json
+        run: |
+          semgrep --config=auto --json > semgrep-report.json
+          echo "=== Résumé du rapport ==="
+          cat semgrep-report.json | grep '"check_id"' || echo "✅ Aucune vulnérabilité détectée"
 
+      # 🚨 Échec automatique du pipeline si vulnérabilités détectées
+      - name: Fail if vulnerabilities found
+        run: |
+          if grep -q '"check_id"' semgrep-report.json; then
+            echo "❌ Vulnérabilités détectées par Semgrep. Blocage du pipeline."
+            exit 1
+          else
+            echo "✅ Aucun problème détecté. Pipeline OK."
+          fi
+
+      # 📄 Sauvegarde du rapport Semgrep en tant qu’artéfact
       - name: Upload Semgrep report
         uses: actions/upload-artifact@v3
         with:
