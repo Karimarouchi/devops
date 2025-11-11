@@ -1,7 +1,7 @@
 # 🐳 Dockerfile minimal pour ton projet Java DevSecOps Demo
 
 # 1️⃣ Utiliser une image Java officielle
-FROM openjdk:17-jdk-slim
+FROM eclipse-temurin:17-jdk-alpine
 
 # 2️⃣ Définir le répertoire de travail
 WORKDIR /app
