@@ -1,4 +1,4 @@
-kname: DevSecOps Pipeline - Semgrep SAST
+kname: DevSecOps Pipeline - Semgrep SAST--
 
 on:
   push:
