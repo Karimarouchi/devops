@@ -13,7 +13,7 @@ class FakeRequest {
         return "";
     }
 }
-
+String secret = "API_KEY=TEST123456789";
 public class App {
     public static void main(String[] args) {
         System.out.println("✅ Application DevSecOps Demo is running!");
