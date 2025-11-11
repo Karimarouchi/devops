@@ -25,18 +25,19 @@ jobs:
 
       - name: Run Semgrep (JSON + text)
         run: |
-          semgrep --config=p/security-audit --json -o semgrep-report.json || true
-          semgrep --config=p/security-audit --text -o semgrep-report.txt || true
-          echo "Semgrep finished. Reports: semgrep-report.json / semgrep-report.txt"
+          # Exécution avec ton fichier de règles personnalisé
+          semgrep --config=.semgrep/java-password-sql.yml --json -o semgrep-report.json || true
+          semgrep --config=.semgrep/java-password-sql.yml --text -o semgrep-report.txt || true
+          echo "✅ Semgrep terminé. Rapports générés : semgrep-report.json / semgrep-report.txt"
 
       - name: Fail pipeline if Semgrep found issues
         run: |
           if [ -f semgrep-report.json ] && grep -q '"check_id"' semgrep-report.json; then
-            echo "❌ Vulnérabilités Semgrep détectées. Pipeline bloqué."
-            echo "Voir semgrep-report.txt et semgrep-report.json"
+            echo "❌ Vulnérabilités détectées par Semgrep !"
+            echo "➡️ Voir semgrep-report.txt et semgrep-report.json pour les détails."
             exit 1
           else
-            echo "✅ Aucun problème détecté."
+            echo "✅ Aucun problème détecté par Semgrep."
           fi
 
       - name: Upload Semgrep reports
