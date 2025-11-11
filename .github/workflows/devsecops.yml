@@ -46,3 +46,8 @@ jobs:
         with:
           name: semgrep-report
           path: semgrep-report.json
+- name: Upload HTML report
+  uses: actions/upload-artifact@v3
+  with:
+    name: semgrep-html-report
+    path: semgrep-report.html
