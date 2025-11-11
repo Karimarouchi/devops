@@ -5,7 +5,7 @@ import javax.servlet.http.HttpServletRequest;
 
 public class App {
     public static void main(String[] args) {
-        System.out.println("✅ Application DevSecOps Demo is running!");
+        System.out.println("✅ Applicationnnn DevSecOps Demo is running!");
     }
 
 
