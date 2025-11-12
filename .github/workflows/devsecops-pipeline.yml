@@ -13,84 +13,83 @@ jobs:
   sast:
     name: 🔎 SAST - Semgrep
     runs-on: ubuntu-latest
- steps:
+    steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: '3.11'
 
       - name: Install Semgrep
-        run: pip install semgrep
-
-      - name: Run Semgrep (JSON + text)
         run: |
-          # Exécution avec ton fichier de règles personnalisé
-          semgrep --config=.semgrep/java-password-sql.yml --json -o semgrep-report.json || true
-          semgrep --config=.semgrep/java-password-sql.yml --text -o semgrep-report.txt || true
-          echo "✅ Semgrep terminé. Rapports générés : semgrep-report.json / semgrep-report.txt"
+          python -m pip install --upgrade pip
+          pip install semgrep
 
-      - name: Fail pipeline if Semgrep found issues
+      - name: Run Semgrep and enforce policy
         run: |
-          if [ -f semgrep-report.json ] && grep -q '"check_id"' semgrep-report.json; then
+          semgrep --config=.semgrep/java-password-sql.yml --json --output=semgrep-report.json
+          if grep -q '"check_id"' semgrep-report.json; then
             echo "❌ Vulnérabilités détectées par Semgrep !"
-            echo "➡️ Voir semgrep-report.txt et semgrep-report.json pour les détails."
             exit 1
           else
             echo "✅ Aucun problème détecté par Semgrep."
           fi
 
       - name: Upload Semgrep reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: semgrep-report
-          path: |
-            semgrep-report.json
-            semgrep-report.txt
+          path: semgrep-report.json
+
   # 2️⃣ SCA - OWASP Dependency-Check (bloquant)
-  dependency_check:
+ dependency_check:
     name: 🧩 SCA - OWASP Dependency-Check
     runs-on: ubuntu-latest
     needs: sast
-steps:
-      # 1️⃣ Récupérer le code
-      - name: Checkout du code
+    steps:
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # 2️⃣ Installer Java (nécessaire pour OWASP Dependency-Check)
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          java-version: "17"
-          distribution: "temurin"
+          java-version: '17'
+          distribution: 'temurin'
 
-      # 3️⃣ Télécharger l'outil Dependency-Check
-      - name: Installer OWASP Dependency-Check
+      - name: Download Dependency-Check
         run: |
-          echo "📦 Téléchargement de OWASP Dependency-Check..."
-          wget https://github.com/jeremylong/DependencyCheck/releases/download/v10.0.3/dependency-check-10.0.3-release.zip
-          unzip dependency-check-10.0.3-release.zip
-          mv dependency-check /opt/dependency-check
-          chmod +x /opt/dependency-check/bin/dependency-check.sh
+          DC_VER="10.0.3"
+          wget -q "https://github.com/jeremylong/DependencyCheck/releases/download/v${DC_VER}/dependency-check-${DC_VER}-release.zip" -O dc.zip
+          unzip -q dc.zip -d dc
 
-      # 4️⃣ Lancer l'analyse SCA
-      - name: Exécuter l'analyse SCA avec OWASP Dependency-Check
+      - name: Run Dependency-Check
         run: |
-          echo "🔍 Analyse des dépendances Maven..."
-          /opt/dependency-check/bin/dependency-check.sh \
+          mkdir -p dependency-check
+          chmod +x dc/dependency-check/bin/dependency-check.sh
+          ./dc/dependency-check/bin/dependency-check.sh \
             --project "DevSecOps-Demo" \
-            --scan ./ \
+            --scan . \
             --format "ALL" \
-            --out dependency-report || true
+            --out dependency-check
 
-      # 5️⃣ Upload du rapport comme artefact
-      - name: Upload du rapport SCA
+      - name: Fail if CRITICAL vulnerabilities exist
+        run: |
+          if grep -q "CRITICAL" dependency-check/dependency-check-report.json; then
+            echo "🚨 Vulnérabilités critiques détectées dans les dépendances !"
+            exit 1
+          else
+            echo "✅ Aucune vulnérabilité critique détectée."
+          fi
+
+      - name: Upload Dependency-Check reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: owasp-dependency-report
-          path: dependency-report
+          name: dependency-check-report
+          path: dependency-check/dependency-check-report.*
   # 3️⃣ Docker Image Scan - Trivy (bloquant)
   docker_scan:
     name: 🐳 Docker Build & Trivy
@@ -191,4 +190,3 @@ steps:
 
       - name: End SonarQube Scan
         run: echo "SonarQube scan terminé (résultats visibles dans ton instance)."
-
