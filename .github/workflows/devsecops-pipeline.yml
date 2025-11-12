@@ -158,15 +158,14 @@ jobs:
         with:
           target: "http://testphp.vulnweb.com"
           cmd_options: "-a -T 5"
-          allow_issue_writing: false       # Empêche la création d’issue automatique
-          upload_artifact: "false"         # ⚠️ Important : mettre des guillemets pour forcer le type string
-          artifact_name: "none"            # Nom d’artifact bidon (obligatoire pour bypass bug)
+          allow_issue_writing: false
+          artifact_name: "zap-report"     # ✅ nom d’artifact valide (sans underscore)
 
-      - name: 📤 Upload manuel du rapport ZAP
+      - name: 📤 Upload manuel du rapport ZAP (optionnel)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report
+          name: zap-report-manuel
           path: |
             report_html.html
             report_md.md
