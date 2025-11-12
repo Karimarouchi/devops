@@ -1,4 +1,4 @@
-kname: 🌐 DevSecOps – Full Security Pipeline
+name: 🌐 DevSecOps – Full Security Pipeline
 
 on:
   push:
