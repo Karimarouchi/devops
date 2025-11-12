@@ -6,6 +6,17 @@ on:
   pull_request:
     branches: ["main"]
   workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  checks: write
+  security-events: write
+  pull-requests: write
+  issues: write
+  id-token: write
+  packages: write
+  pages: write
+  statuses: write
 
 jobs:
   # 1️⃣ SAST - Analyse du code source
