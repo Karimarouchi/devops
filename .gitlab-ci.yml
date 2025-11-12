@@ -1,0 +1,82 @@
+stages:
+  - sast
+  - sca
+  - docker_scan
+  - dast
+  - secrets
+
+variables:
+  IMAGE_NAME: "devsecops-demo"
+  IMAGE_TAG: "latest"
+
+# ------------------ SAST ------------------
+sast:
+  stage: sast
+  image: python:3.10
+  script:
+    - pip install semgrep
+    - semgrep --config=p/security-audit --json -o semgrep-report.json || true
+    - cat semgrep-report.json
+    - |
+      if grep -q '"check_id"' semgrep-report.json; then
+        echo "❌ Vulnérabilités critiques détectées par Semgrep"
+        exit 1
+      else
+        echo "✅ Aucun problème détecté"
+      fi
+  artifacts:
+    paths:
+      - semgrep-report.json
+
+# ------------------ SCA ------------------
+sca:
+  stage: sca
+  image: aquasec/trivy:latest
+  script:
+    - trivy fs --scanners vuln --exit-code 1 --severity CRITICAL,HIGH --output sca-report.txt .
+  artifacts:
+    paths:
+      - sca-report.txt
+
+# ------------------ Docker Scan ------------------
+docker_scan:
+  stage: docker_scan
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker build -t $IMAGE_NAME:$IMAGE_TAG .
+    - docker run --rm aquasec/trivy:latest image --exit-code 1 --severity CRITICAL,HIGH $IMAGE_NAME:$IMAGE_TAG
+  artifacts:
+    paths:
+      - /root/.cache/trivy
+
+# ------------------ DAST ------------------
+dast:
+  stage: dast
+  image: owasp/zap2docker-stable
+  script:
+    - zap-baseline.py -t http://testphp.vulnweb.com -r zap-report.html || true
+    - grep "FAIL" zap-report.html && exit 1 || echo "✅ DAST OK"
+  artifacts:
+    paths:
+      - zap-report.html
+
+# ------------------ Secrets Scan ------------------
+secrets_scan:
+  stage: secrets
+  image: zricethezav/gitleaks:latest
+  script:
+    - gitleaks detect --source . --report-format json --report-path gitleaks-report.json || true
+    - cat gitleaks-report.json
+    - |
+      if grep -q '"Description"' gitleaks-report.json; then
+        echo "❌ Secrets détectés dans le dépôt !"
+        exit 1
+      else
+        echo "✅ Aucun secret trouvé"
+      fi
+  artifacts:
+    paths:
+      - gitleaks-report.json
+
