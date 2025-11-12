@@ -95,20 +95,47 @@ jobs:
         with:
           name: docker-scan-report
           path: docker-scan.json
+# 🔍 SonarQube Scan
+sonar:
+    name: 🔍 SonarQube Scan
+    runs-on: ubuntu-latest
+    needs: [sast, dependency_check, docker_scan, dast, secrets_scan]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
+      - name: SonarQube scan
+        uses: SonarSource/sonarqube-scan-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          projectBaseDir: .
+          args: >
+            -Dsonar.projectKey=SonarQube-GITHUB
+            -Dsonar.projectName=SonarQube-GITHUB
+
+      - name: SonarQube - done
+        run: echo "SonarQube scan submitted."
   # 4️⃣ DAST - Test dynamique
   dast:
     name: 🌐 DAST - OWASP ZAP
     runs-on: ubuntu-latest
     needs: docker_scan
     steps:
-      - uses: actions/checkout@v4
-      - name: Run OWASP ZAP baseline scan
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run OWASP ZAP baseline (site de test)
         uses: zaproxy/action-baseline@v0.11.0
         with:
           target: "http://testphp.vulnweb.com"
           cmd_options: "-a -T 5"
-      - uses: actions/upload-artifact@v4
+          allow_issue_writing: false   # évite que ZAP tente d'écrire dans le repo (permission)
+
+      - name: Upload ZAP reports
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: zap-report
           path: |
@@ -116,6 +143,10 @@ jobs:
             report_md.md
             report_json.json
 
+      - name: ZAP summary (console)
+        if: always()
+        run: |
+          echo "ZAP Scan terminé. Rapports uploadés."
   # 5️⃣ Secrets - Gitleaks
   secrets:
     name: 🔒 Secrets Scan - Gitleaks
