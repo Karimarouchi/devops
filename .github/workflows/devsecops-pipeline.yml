@@ -158,13 +158,14 @@ jobs:
         with:
           target: "http://testphp.vulnweb.com"
           cmd_options: "-a -T 5"
-          allow_issue_writing: false # évite les erreurs de permissions
+          allow_issue_writing: false     # évite la création automatique d’issue
+          upload_artifact: false         # 🚀 désactive l’upload intégré de ZAP
 
-      - name: 📤 Upload du rapport ZAP
+      - name: 📤 Upload manuel du rapport ZAP
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report
+          name: zap-report               # nom propre et stable
           path: |
             report_html.html
             report_md.md
