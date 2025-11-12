@@ -6,12 +6,6 @@ pipeline {
   }
 
   stages {
-    stage('Checkout') {
-      steps {
-        git 'https://github.com/Karimarouchi/devops.git'
-      }
-    }
-
     stage('SAST - Semgrep') {
       steps {
         sh '''
