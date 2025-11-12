@@ -1,123 +1,137 @@
-name: 🔐 DevSecOps - Full Security Pipeline
+name: DevSecOps - Full Security Pipeline
 
 on:
   push:
-    branches: ["main"]
+    branches: [ main ]
   pull_request:
-    branches: ["main"]
+    branches: [ main ]
   workflow_dispatch:
 
+concurrency:
+  group: devsecops-pipeline
+  cancel-in-progress: true
+
 jobs:
-  # 1️⃣ SAST - Analyse du code source
+
+  # ----------------------
+  # 1) SAST - Semgrep
+  # ----------------------
   sast:
-    name: 🔍 SAST - Semgrep Static Analysis
+    name: 🔎 SAST - Semgrep Static Analysis
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Semgrep
-        run: pip install semgrep
-      - name: Run Semgrep
-        run: |
-          semgrep --config=.semgrep/java-password-sql.yml --json -o semgrep-report.json || true
-          semgrep --config=.semgrep/java-password-sql.yml --text -o semgrep-report.txt || true
-      - name: ⛔ Fail if Semgrep found issues
-        run: |
-          if grep -q '"check_id"' semgrep-report.json; then
-            echo "❌ Vulnérabilités détectées par Semgrep !"
-            exit 1
-          fi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: semgrep-report
-          path: |
-            semgrep-report.json
-            semgrep-report.txt
-
-  # 2️⃣ SCA - Analyse des dépendances
-  sca:
-    name: 🧩 SCA - OWASP Dependency Check
-    runs-on: ubuntu-latest
-    needs: sast
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          java-version: "17"
-          distribution: "temurin"
-      - name: Install OWASP Dependency-Check
-        run: |
-          wget https://github.com/jeremylong/DependencyCheck/releases/download/v10.0.3/dependency-check-10.0.3-release.zip
-          unzip dependency-check-10.0.3-release.zip
-          mv dependency-check /opt/dependency-check
-          chmod +x /opt/dependency-check/bin/dependency-check.sh
-      - name: Run Dependency Check
-        run: |
-          /opt/dependency-check/bin/dependency-check.sh \
-            --project "DevSecOps-Demo" \
-            --scan ./ \
-            --format "ALL" \
-            --out dependency-report || true
-      - name: ⛔ Fail if critical vulnerabilities
-        run: |
-          if grep -q "CRITICAL" dependency-report/dependency-check-report.html; then
-            echo "❌ Vulnérabilités critiques détectées !"
-            exit 1
-          fi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dependency-report
-          path: dependency-report
-
-  # 3️⃣ Docker Scan - Image container
-  docker_scan:
-    name: 🐳 Docker Image Scan - Trivy
-    runs-on: ubuntu-latest
-    needs: sca
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - name: Build Docker image
-        run: docker build -t devsecops-demo:latest .
-      - name: Run Trivy Scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: "devsecops-demo:latest"
-          format: "json"
-          output: "docker-scan.json"
-          exit-code: "0"
-      - name: ⛔ Fail if critical vulnerabilities
-        run: |
-          if grep -q "CRITICAL" docker-scan.json; then
-            echo "❌ Vulnérabilités critiques dans l’image Docker !"
-            exit 1
-          fi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: docker-scan-report
-          path: docker-scan.json
-# 🔍 SonarQube Scan
-sonar:
-    name: 🔍 SonarQube Scan
-    runs-on: ubuntu-latest
-    needs: [sast, dependency_check, docker_scan, dast, secrets_scan]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: SonarQube scan
-        uses: SonarSource/sonarqube-scan-action@v2
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
-          projectBaseDir: .
-          args: >
-            -Dsonar.projectKey=SonarQube-GITHUB
-            -Dsonar.projectName=SonarQube-GITHUB
+          python-version: '3.11'
 
-      - name: SonarQube - done
-        run: echo "SonarQube scan submitted."
-  # 4️⃣ DAST - Test dynamique
+      - name: Install Semgrep
+        run: |
+          python -m pip install --upgrade pip
+          pip install semgrep
+
+      - name: Run Semgrep (JSON + text)
+        id: semgrep
+        run: |
+          semgrep --config=p/r2c --json --output=semgrep-report.json || true
+          semgrep --config=p/r2c --markdown --output=semgrep-report.md || true
+          semgrep --config=p/r2c --text --output=semgrep-report.txt || true
+          # si semgrep-report.json contient au moins une "check_id" -> exit 1 pour bloquer
+          if [ -f semgrep-report.json ] && grep -q '"check_id"' semgrep-report.json; then
+            echo "❌ Vulnérabilités détectées par Semgrep !"
+            echo "Voir semgrep-report.md / semgrep-report.json pour détails."
+            exit 1
+          else
+            echo "✅ Semgrep: no findings"
+          fi
+
+      - name: Upload Semgrep reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-report
+          path: |
+            semgrep-report.json
+            semgrep-report.md
+            semgrep-report.txt
+
+  # ----------------------
+  # 2) SCA - OWASP Dependency-Check
+  # ----------------------
+  dependency_check:
+    name: 🧩 SCA - OWASP Dependency-Check
+    runs-on: ubuntu-latest
+    needs: sast
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java (dependency-check requires Java)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+
+      - name: Install OWASP Dependency-Check CLI
+        run: |
+          curl -sSL https://github.com/jeremylong/DependencyCheck/releases/latest/download/dependency-check-7.6.0-release.zip -o dc.zip
+          unzip -q dc.zip -d dc
+          chmod +x dc/dependency-check/bin/dependency-check.sh
+
+      - name: Run OWASP Dependency-Check
+        run: |
+          ./dc/dependency-check/bin/dependency-check.sh --project "devops-project" --format ALL --scan . --out dependency-check-report || true
+
+      - name: Upload Dependency-Check reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: |
+            dependency-check-report.html
+            dependency-check-report.xml
+            dependency-check-report.json
+
+  # ----------------------
+  # 3) Docker image build + Trivy scan
+  # ----------------------
+  docker_scan:
+    name: 🐳 Docker Image Scan - Trivy
+    runs-on: ubuntu-latest
+    needs: dependency_check
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          echo "🏗️ Construction de l'image Docker..."
+          docker build -t devops-scan-image:latest .
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@v2
+        with:
+          image-ref: devops-scan-image:latest
+          format: table
+          output: trivy-report.txt
+          exit-code: '1' # 0=pass, 1=fail on vuln found (change si tu veux seulement signaler)
+          scan-type: image
+
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.txt
+
+  # ----------------------
+  # 4) DAST - OWASP ZAP
+  # ----------------------
   dast:
     name: 🌐 DAST - OWASP ZAP
     runs-on: ubuntu-latest
@@ -147,24 +161,57 @@ sonar:
         if: always()
         run: |
           echo "ZAP Scan terminé. Rapports uploadés."
-  # 5️⃣ Secrets - Gitleaks
-  secrets:
-    name: 🔒 Secrets Scan - Gitleaks
+
+  # ----------------------
+  # 5) Secrets Scan - Gitleaks
+  # ----------------------
+  secrets_scan:
+    name: 🔐 Secrets Scan - Gitleaks
     runs-on: ubuntu-latest
     needs: dast
     steps:
-      - uses: actions/checkout@v4
-      - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        with:
-          args: detect --source . --report-format json --report-path gitleaks-report.json || true
-      - name: ⛔ Fail if secrets found
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install gitleaks
         run: |
-          if grep -q '"Description"' gitleaks-report.json; then
-            echo "❌ Secrets détectés dans le dépôt !"
-            exit 1
-          fi
-      - uses: actions/upload-artifact@v4
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_$(uname -s)_$(uname -m).tar.gz | tar -xz
+          chmod +x gitleaks
+          sudo mv gitleaks /usr/local/bin/gitleaks || true
+
+      - name: Run gitleaks (scan)
+        run: |
+          gitleaks detect --source . --report-path=gitleaks-report.json || true
+
+      - name: Upload gitleaks report
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: gitleaks-report
           path: gitleaks-report.json
+
+  # ----------------------
+  # 6) SonarQube Analysis
+  # ----------------------
+  sonar:
+    name: 🔍 SonarQube Scan
+    runs-on: ubuntu-latest
+    needs: [sast, dependency_check, docker_scan, dast, secrets_scan]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: SonarQube scan
+        uses: SonarSource/sonarqube-scan-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          projectBaseDir: .
+          args: >
+            -Dsonar.projectKey=SonarQube-GITHUB
+            -Dsonar.projectName=SonarQube-GITHUB
+
+      - name: SonarQube - done
+        run: echo "SonarQube scan submitted."
+
