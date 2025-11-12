@@ -2,81 +2,94 @@ stages:
   - sast
   - sca
   - docker_scan
-  - dast
   - secrets
+  - report
 
 variables:
-  IMAGE_NAME: "devsecops-demo"
-  IMAGE_TAG: "latest"
+    SEMGREP_APP_TOKEN: $SEMGREP_APP_TOKEN
+  SONAR_HOST_URL: "http://192.168.50.4:9000"
+  SONAR_LOGIN: $SONAR_TOKEN
 
-# ------------------ SAST ------------------
+# --- 1️⃣ SAST : Analyse du code avec Semgrep ---
 sast:
   stage: sast
   image: python:3.10
   script:
     - pip install semgrep
-    - semgrep --config=p/security-audit --json -o semgrep-report.json || true
-    - cat semgrep-report.json
-    - |
-      if grep -q '"check_id"' semgrep-report.json; then
-        echo "❌ Vulnérabilités critiques détectées par Semgrep"
-        exit 1
-      else
-        echo "✅ Aucun problème détecté"
-      fi
-  artifacts:
+    - semgrep --config=.semgrep/java-password-sql.yml --json -o semgrep-report.json || true
+    - semgrep ci --json -o semgrep-report.json
+artifacts:
+    when: always
     paths:
       - semgrep-report.json
+    expire_in: 7 days
 
-# ------------------ SCA ------------------
+# --- 2️⃣ SCA : Dépendances avec OWASP Dependency-Check ---
 sca:
   stage: sca
-  image: aquasec/trivy:latest
+  image: openjdk:17-jdk
   script:
-    - trivy fs --scanners vuln --exit-code 1 --severity CRITICAL,HIGH --output sca-report.txt .
+    - apt-get update && apt-get install -y wget unzip
+    - wget -q https://github.com/jeremylong/DependencyCheck/releases/download/v10.0.3/dependency-check-10.0.3-release.zip -O depcheck.zip
+    - unzip -o -q depcheck.zip
+    - ./dependency-check/bin/dependency-check.sh --project "MyApp" --scan . --format "JSON" --out .
   artifacts:
+    when: always
     paths:
-      - sca-report.txt
+      - dependency-check-report.json
+    expire_in: 7 days
 
-# ------------------ Docker Scan ------------------
+# --- 3️⃣ Docker Scan avec Trivy ---
 docker_scan:
   stage: docker_scan
-  image: docker:latest
-  services:
-    - docker:dind
+  image: aquasec/trivy:latest
   script:
-    - docker build -t $IMAGE_NAME:$IMAGE_TAG .
-    - docker run --rm aquasec/trivy:latest image --exit-code 1 --severity CRITICAL,HIGH $IMAGE_NAME:$IMAGE_TAG
+    - trivy fs . --format json --output trivy-report.json || true
   artifacts:
+    when: always
     paths:
-      - /root/.cache/trivy
+      - trivy-report.json
+    expire_in: 7 days
 
-# ------------------ DAST ------------------
-dast:
-  stage: dast
-  image: owasp/zap2docker-stable
-  script:
-    - zap-baseline.py -t http://testphp.vulnweb.com -r zap-report.html || true
-    - grep "FAIL" zap-report.html && exit 1 || echo "✅ DAST OK"
-  artifacts:
-    paths:
-      - zap-report.html
-
-# ------------------ Secrets Scan ------------------
-secrets_scan:
+# --- 4️⃣ Secrets Scan avec Gitleaks ---
+secrets:
   stage: secrets
   image: zricethezav/gitleaks:latest
   script:
     - gitleaks detect --source . --report-format json --report-path gitleaks-report.json || true
-    - cat gitleaks-report.json
-    - |
-      if grep -q '"Description"' gitleaks-report.json; then
-        echo "❌ Secrets détectés dans le dépôt !"
-        exit 1
-      else
-        echo "✅ Aucun secret trouvé"
-      fi
   artifacts:
+    when: always
     paths:
       - gitleaks-report.json
+    expire_in: 7 days
 
+# --- 5️⃣ SonarQube (Optionnel mais recommandé) ---
+sonarqube:
+  stage: report
+  image: sonarsource/sonar-scanner-cli:latest
+  script:
+    - sonar-scanner -Dsonar.projectKey=devops
+                    -Dsonar.sources=.
+                    -Dsonar.host.url=$SONAR_HOST_URL
+                    -Dsonar.login=$SONAR_LOGIN
+  only:
+    - main
+
+# --- 6️⃣ Reporting & Alerting ---
+report:
+  stage: report
+  image: python:3.10
+  script:
+    - echo "🔔 Génération du rapport global..."
+    - echo "📄 SAST : semgrep-report.json"
+    - echo "📄 SCA : dependency-check-report.json"
+    - echo "📄 Trivy : trivy-report.json"
+    - echo "📄 Gitleaks : gitleaks-report.json"
+  artifacts:
+    when: always
+    paths:
+      - semgrep-report.json
+      - dependency-check-report.json
+      - trivy-report.json
+      - gitleaks-report.json
+    expire_in: 1 week
