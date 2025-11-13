@@ -143,53 +143,45 @@ jobs:
         with:
           name: docker-scan-report
           path: docker-scan.json
-
   # 5️⃣ DAST - Test dynamique OWASP ZAP
   dast:
-    name: 🌐 DAST - OWASP ZAP Baseline
+    name: 🌐 DAST - Nikto Web Vulnerability Scan
     runs-on: ubuntu-latest
     needs: docker_scan
     steps:
       - name: 📥 Checkout du code
         uses: actions/checkout@v4
 
-      - name: ⚙️ Lancer un scan OWASP ZAP (site de test)
-        uses: zaproxy/action-baseline@v0.11.0
-        with:
-          target: "http://testphp.vulnweb.com"
-          cmd_options: "-a -T 5"
-          allow_issue_writing: false
-          artifact_name: "zap-report"     # ✅ nom d’artifact valide (sans underscore)
+      - name: ⚙️ Exécuter un scan Nikto
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y nikto
+          nikto -h http://testphp.vulnweb.com -output nikto_report.txt
 
-      - name: 📤 Upload manuel du rapport ZAP (optionnel)
+      - name: 📤 Upload du rapport Nikto
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report-manuel
-          path: |
-            report_html.html
-            report_md.md
-            report_json.json
+          name: nikto-report
+          path: nikto_report.txt
 
-  # 6️⃣ SonarQube Scan - Analyse qualité et sécurité
-  sonar:
-    name: 🔍 SonarQube Scan
+  # 6️⃣ SAST Cloud - Qodana
+  qodana:
+    name: 🔍 Qodana Cloud Analysis
     runs-on: ubuntu-latest
-    needs: [sast, sca, secrets, docker_scan, dast]
+    needs: [sast, sca, docker_scan, dast, secrets]
     steps:
-      - name: 📥 Checkout du code
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: 🚀 Exécuter l’analyse SonarQube
-        uses: SonarSource/sonarqube-scan-action@v2
+      - name: 🚀 Run Qodana Scan
+        uses: JetBrains/qodana-action@v2024.1.4
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-        with:
-          projectBaseDir: .
-          args: >
-            -Dsonar.projectKey=SonarQube-GITHUB
-            -Dsonar.projectName=SonarQube-GITHUB
+          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
 
-      - name: ✅ Fin du scan
-        run: echo "Analyse SonarQube terminée. Consulte les résultats sur ton instance."
+      - name: 📤 Upload Qodana Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qodana-report
+          path: qodana/report/
