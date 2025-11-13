@@ -9,6 +9,8 @@ public class App {
     public static void greetUser(String name) {
         // Exemple de bonne pratique : pas de hardcoded secret ni données sensibles
         if (name == null || name.isEmpty()) {
+String apiKey = "SECRET_KEY_1234567890";
+String password = "github_pat_ABC1234567890FAKE";
             System.out.println("Nom invalide !");
             return;
         }
@@ -17,4 +19,8 @@ public class App {
         String message = "Bienvenue, " + name + " 👋";
         System.out.println(message);
     }
+}
+public void insecureQuery(String userInput) {
+    String query = "SELECT * FROM users WHERE name = '" + userInput + "'";
+    System.out.println(query);
 }
