@@ -185,3 +185,25 @@ jobs:
         with:
           name: qodana-report
           path: qodana/report/
+  notify_email:
+    name: 📧 Send email notification
+    needs: [semgrep_scan, trivy_scan, qodana_scan]   # adapte selon ton pipeline
+    if: failure()   # envoie seulement si vulnérabilités trouvées
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📧 Send email alert
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "🚨 DevSecOps Scan Failed"
+          body: |
+            Un ou plusieurs scans ont échoué :
+            - Semgrep
+            - Trivy
+            - Qodana
+            Vérifie les logs sur GitHub Actions.
+          from: ${{ secrets.EMAIL_FROM }}
+          to: ${{ secrets.EMAIL_TO }}
